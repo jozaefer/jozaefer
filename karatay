@@ -1,0 +1,128 @@
+@@ -1,14 +1,14 @@
+// ! https://github.com/recloudstream/extensions/blob/master/InvidiousProvider/src/main/kotlin/recloudstream/InvidiousProvider.kt	// ! https://github.com/recloudstream/extensions/blob/master/InvidiousProvider/src/main/kotlin/recloudstream/InvidiousProvider.kt
+package com.recloudstream	package com.recloudstream
+import com.lagradost.cloudstream3.*	import com.lagradost.cloudstream3.*
+import com.lagradost.cloudstream3.utils.*	import com.lagradost.cloudstream3.utils.*
+import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson	import com.lagradost.cloudstream3.utils.AppUtils.tryParseJson
+import java.net.URLEncoder	import java.net.URLEncoder
+
+
+class YouTube : MainAPI() {	class YouTube : MainAPI() {
+    override var mainUrl              = "https://invidious.nerdvpn.de"	    override var mainUrl              = "https://iv.datura.network"
+    override var name                 = "YouTube"	    override var name                 = "YouTube"
+    override val hasMainPage          = true	    override val hasMainPage          = true
+    override var lang                 = "tr"	    override var lang                 = "tr"
+    override val hasChromecastSupport = true	    override val hasChromecastSupport = true
+    override val hasDownloadSupport   = true	    override val hasDownloadSupport   = true
+    override val supportedTypes       = setOf(TvType.Others)	    override val supportedTypes       = setOf(TvType.Others)
+    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {	    override suspend fun getMainPage(page: Int, request: MainPageRequest): HomePageResponse {
+        val trending = tryParseJson<List<SearchEntry>>(	        val trending = tryParseJson<List<SearchEntry>>(
+            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=news&fields=videoId,title").text	            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=news&fields=videoId,title").text
+        )	        )
+        val music = tryParseJson<List<SearchEntry>>(	        val music = tryParseJson<List<SearchEntry>>(
+            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=music&fields=videoId,title").text	            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=music&fields=videoId,title").text
+        )	        )
+        val movies = tryParseJson<List<SearchEntry>>(	        val movies = tryParseJson<List<SearchEntry>>(
+            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=movies&fields=videoId,title").text	            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=movies&fields=videoId,title").text
+        )	        )
+        val gaming = tryParseJson<List<SearchEntry>>(	        val gaming = tryParseJson<List<SearchEntry>>(
+            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=gaming&fields=videoId,title").text	            app.get("${mainUrl}/api/v1/trending?region=${lang.uppercase()}&type=gaming&fields=videoId,title").text
+        )	        )
+        return newHomePageResponse(	        return newHomePageResponse(
+            listOf(	            listOf(
+                HomePageList(	                HomePageList(
+                    "Trend",	                    "Trend",
+                    trending?.map { it.toSearchResponse(this) } ?: emptyList(),	                    trending?.map { it.toSearchResponse(this) } ?: emptyList(),
+                    true	                    true
+                ),	                ),
+                HomePageList(	                HomePageList(
+                    "Müzik",	                    "Müzik",
+                    music?.map { it.toSearchResponse(this) } ?: emptyList(),	                    music?.map { it.toSearchResponse(this) } ?: emptyList(),
+                    true	                    true
+                ),	                ),
+                HomePageList(	                HomePageList(
+                    "Film",	                    "Film",
+                    movies?.map { it.toSearchResponse(this) } ?: emptyList(),	                    movies?.map { it.toSearchResponse(this) } ?: emptyList(),
+                    true	                    true
+                ),	                ),
+                HomePageList(	                HomePageList(
+                    "Oyun",	                    "Oyun",
+                    gaming?.map { it.toSearchResponse(this) } ?: emptyList(),	                    gaming?.map { it.toSearchResponse(this) } ?: emptyList(),
+                    true	                    true
+                )	                )
+            ),	            ),
+            false	            false
+        )	        )
+    }	    }
+    // this function gets called when you search for something	    // this function gets called when you search for something
+    override suspend fun search(query: String): List<SearchResponse> {	    override suspend fun search(query: String): List<SearchResponse> {
+        val res = tryParseJson<List<SearchEntry>>(	        val res = tryParseJson<List<SearchEntry>>(
+            app.get("${mainUrl}/api/v1/search?q=${query.encodeUri()}&region=${lang.uppercase()}&page=1&type=video&fields=videoId,title").text	            app.get("${mainUrl}/api/v1/search?q=${query.encodeUri()}&region=${lang.uppercase()}&page=1&type=video&fields=videoId,title").text
+        )	        )
+        return res?.map { it.toSearchResponse(this) } ?: emptyList()	        return res?.map { it.toSearchResponse(this) } ?: emptyList()
+    }	    }
+    override suspend fun load(url: String): LoadResponse? {	    override suspend fun load(url: String): LoadResponse? {
+        val videoId = Regex("watch\\?v=([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)	        val videoId = Regex("watch\\?v=([a-zA-Z0-9_-]+)").find(url)?.groupValues?.get(1)
+        val res     = tryParseJson<VideoEntry>(	        val res     = tryParseJson<VideoEntry>(
+            app.get("${mainUrl}/api/v1/videos/${videoId}?region=${lang.uppercase()}&fields=videoId,title,description,recommendedVideos,author,authorThumbnails,formatStreams").text	            app.get("${mainUrl}/api/v1/videos/${videoId}?region=${lang.uppercase()}&fields=videoId,title,description,recommendedVideos,author,authorThumbnails,formatStreams").text
+        )	        )
+        return res?.toLoadResponse(this)	        return res?.toLoadResponse(this)
+    }	    }
+    private data class SearchEntry(val title: String, val videoId: String) {	    private data class SearchEntry(val title: String, val videoId: String) {
+        fun toSearchResponse(provider: YouTube): SearchResponse {	        fun toSearchResponse(provider: YouTube): SearchResponse {
+            return provider.newMovieSearchResponse(	            return provider.newMovieSearchResponse(
+                title,	                title,
+                "${provider.mainUrl}/watch?v=${videoId}",	                "${provider.mainUrl}/watch?v=${videoId}",
+                TvType.Others	                TvType.Others
+            ) {	            ) {
+                this.posterUrl = "${provider.mainUrl}/vi/${videoId}/mqdefault.jpg"	                this.posterUrl = "${provider.mainUrl}/vi/${videoId}/mqdefault.jpg"
+            }	            }
+        }	        }
+    }	    }
+    private data class VideoEntry(	    private data class VideoEntry(
+        val title: String,	        val title: String,
+        val description: String,	        val description: String,
+        val videoId: String,	        val videoId: String,
+        val recommendedVideos: List<SearchEntry>,	        val recommendedVideos: List<SearchEntry>,
+        val author: String,	        val author: String,
+        val authorThumbnails: List<Thumbnail>	        val authorThumbnails: List<Thumbnail>
+    ) {	    ) {
+        suspend fun toLoadResponse(provider: YouTube): LoadResponse {	        suspend fun toLoadResponse(provider: YouTube): LoadResponse {
+            return provider.newMovieLoadResponse(	            return provider.newMovieLoadResponse(
+                title,	                title,
+                "${provider.mainUrl}/watch?v=${videoId}",	                "${provider.mainUrl}/watch?v=${videoId}",
+                TvType.Others,	                TvType.Others,
+                "${videoId}"	                "${videoId}"
+            ) {	            ) {
+                plot            = description	                plot            = description
+                posterUrl       = "${provider.mainUrl}/vi/${videoId}/hqdefault.jpg"	                posterUrl       = "${provider.mainUrl}/vi/${videoId}/hqdefault.jpg"
+                recommendations = recommendedVideos.map { it.toSearchResponse(provider) }	                recommendations = recommendedVideos.map { it.toSearchResponse(provider) }
+                actors          = listOf(ActorData(Actor(	                actors          = listOf(ActorData(Actor(
+                    author,	                    author,
+                    if (authorThumbnails.isNotEmpty()) authorThumbnails.last().url else ""	                    if (authorThumbnails.isNotEmpty()) authorThumbnails.last().url else ""
+                )))	                )))
+            }	            }
+        }	        }
+    }	    }
+    private data class Thumbnail(val url: String)	    private data class Thumbnail(val url: String)
+    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {	    override suspend fun loadLinks(data: String, isCasting: Boolean, subtitleCallback: (SubtitleFile) -> Unit, callback: (ExtractorLink) -> Unit): Boolean {
+        loadExtractor("https://youtube.com/watch?v=${data}", subtitleCallback, callback)	        loadExtractor("https://youtube.com/watch?v=${data}", subtitleCallback, callback)
+        callback(	        callback(
+            ExtractorLink(	            ExtractorLink(
+                "YouTube",	                "YouTube",
+                "YouTube",	                "YouTube",
+                "${mainUrl}/api/manifest/dash/id/${data}",	                "${mainUrl}/api/manifest/dash/id/${data}",
+                "",	                "",
+                Qualities.Unknown.value,	                Qualities.Unknown.value,
+                false,	                false,
+                mapOf(),	                mapOf(),
+                null,	                null,
+                true	                true
+            )	            )
+        )	        )
+        return true	        return true
+    }	    }
+    companion object {	    companion object {
+        fun String.encodeUri() = URLEncoder.encode(this, "utf8")	        fun String.encodeUri() = URLEncoder.encode(this, "utf8")
+    }	    }
+}	}
